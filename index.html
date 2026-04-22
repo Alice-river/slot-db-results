@@ -1,1 +1,711 @@
-<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>SLOT-DB 公開ログ一覧</title><script src="https://cdn.tailwindcss.com"></script><style>body { background-color: #0f172a; color: #f8fafc; font-family: 'Segoe UI', sans-serif; } .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); } .neon-border { border: 1px solid rgba(56, 189, 248, 0.3); box-shadow: 0 0 15px rgba(56, 189, 248, 0.1); } .row-hover:hover { background: rgba(56, 189, 248, 0.05); }</style></head><body class="p-4 md:p-8"><div class="max-w-6xl mx-auto"><header class="mb-10 flex items-center justify-between"><h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-600 tracking-tighter uppercase">SLOT-DB Published Results</h1></header><div class="glass rounded-3xl overflow-hidden neon-border shadow-2xl"><div class="overflow-x-auto"><table class="w-full text-left border-collapse"><thead><tr class="text-xs text-slate-500 font-bold border-b border-slate-700 uppercase"><th class="px-6 py-4">店舗名</th><th class="px-6 py-4">公開日時</th><th class="px-6 py-4">条件</th></tr></thead><tbody class="divide-y divide-slate-700/50"></tbody></table></div></div><footer class="mt-12 text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest">Powered by SLOT-DB</footer></div></body></html>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLOT-DB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Segoe UI', sans-serif; }
+        .glass { background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .neon-border { border: 1px solid rgba(56, 189, 248, 0.3); box-shadow: 0 0 15px rgba(56, 189, 248, 0.1); }
+        .input-dark { background: #1e293b; border: 1px solid #334155; color: #fff; padding: 0.5rem; border-radius: 0.375rem; width: 100%; font-size: 0.875rem; }
+        .input-dark:focus { border-color: #38bdf8; outline: none; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2); }
+        .btn-primary { background: #0284c7; color: white; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 600; transition: all 0.2s; }
+        .btn-primary:hover { background: #0369a1; transform: translateY(-1px); }
+        .label-sm { font-size: 0.75rem; color: #94a3b8; font-weight: bold; margin-bottom: 0.25rem; display: block; text-transform: uppercase; }
+        
+        .chip { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: bold; margin: 0.15rem; cursor: pointer; border: 1px solid transparent; user-select: none; transition: all 0.2s; }
+        .chip-active { background: #38bdf8; color: #0f172a; }
+        .chip-inactive { background: #334155; color: #94a3b8; }
+        
+        .date-badge { background: #334155; padding: 2px 8px; border-radius: 4px; font-size: 10px; display: flex; align-items: center; gap: 4px; border: 1px solid #475569; }
+        .date-badge button { color: #f87171; font-weight: bold; }
+
+        .query-card { background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255,255,255,0.1); border-radius: 1rem; padding: 1rem; margin-bottom: 1rem; transition: all 0.3s; }
+        .query-card:hover { transform: translateY(-2px); border-color: rgba(56, 189, 248, 0.5); background: rgba(30, 41, 59, 0.8); }
+        
+        .progress-bar { width: 100%; height: 4px; background: #334155; border-radius: 2px; overflow: hidden; margin-top: 0.5rem; }
+        .progress-fill { height: 100%; background: #38bdf8; width: 0%; transition: width 0.3s; }
+
+        .scroll-custom::-webkit-scrollbar { width: 6px; height: 6px; }
+        .scroll-custom::-webkit-scrollbar-track { background: transparent; }
+        .scroll-custom::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        .scroll-custom::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        /* 結果テーブル用のスタイル（別ページ用） */
+        .result-view-table table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 0.875rem; }
+        .result-view-table th { background: #1e293b; padding: 0.75rem; text-align: center; border-bottom: 2px solid #475569; position: sticky; top: 0; z-index: 10; border-right: 1px solid #334155; white-space: nowrap; color: #e2e8f0; }
+        .result-view-table td { padding: 0.75rem; border-bottom: 1px solid #334155; border-right: 1px solid #334155; min-width: 100px; text-align: center; }
+        .result-view-table tr:hover { background: rgba(255,255,255,0.03); }
+        .rainbow-border { position: relative; z-index: 1; }
+        .rainbow-border::after { content: ''; position: absolute; inset: 1px; border: 3px solid transparent; border-image: linear-gradient(to bottom right, #b827fc 0%, #2c90fc 25%, #b8fd33 50%, #fec837 75%, #fd1892 100%); border-image-slice: 1; z-index: -1; pointer-events: none; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+    <!-- Sidebar (30%) -->
+    <div id="sidebar" class="w-[30%] h-full glass border-r border-slate-700 overflow-y-auto p-6 space-y-6 scroll-custom">
+        <div class="flex items-center gap-4 mb-8">
+            <h1 class="text-2xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-600">SLOT-DB</h1>
+            <span id="db-status" class="text-[10px] font-mono text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">● ONLINE</span>
+        </div>
+
+        <div class="space-y-6">
+            <button onclick="resetConditions()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 text-[10px] py-1 rounded transition-all">条件初期化</button>
+            <div class="glass p-4 rounded-xl">
+                <label class="label-sm">① 店舗選択</label>
+                <input type="text" id="hall-search" class="input-dark mb-2" placeholder="店舗検索...">
+                <select id="hall-select" class="input-dark" size="5"></select>
+            </div>
+            <div class="glass p-4 rounded-xl">
+                <label class="label-sm">② 日付設定</label>
+                <div class="space-y-3">
+                    <div><span class="text-[10px] text-slate-500">任意の日付選択</span><div class="flex gap-2 mt-1"><input type="date" id="specific-date-input" class="input-dark text-[10px]"><button onclick="addSpecificDate()" class="btn-primary py-1 px-3 text-[12px]">+</button></div><div id="specific-dates-container" class="flex flex-wrap gap-1 mt-2"></div></div>
+                    <div class="border-t border-slate-700 pt-2"><span class="text-[10px] text-slate-500">範囲選択</span><div class="grid grid-cols-2 gap-2 mt-1"><input type="date" id="date-start" class="input-dark text-[10px]"><input type="date" id="date-end" class="input-dark text-[10px]"></div></div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><span class="text-[10px] text-slate-500">曜日</span><div id="weekday-chips" class="flex flex-wrap gap-1 mt-1"><span class="chip chip-inactive" data-val="1">日</span><span class="chip chip-inactive" data-val="2">月</span><span class="chip chip-inactive" data-val="3">火</span><span class="chip chip-inactive" data-val="4">水</span><span class="chip chip-inactive" data-val="5">木</span><span class="chip chip-inactive" data-val="6">金</span><span class="chip chip-inactive" data-val="7">土</span></div></div>
+                        <div><span class="text-[10px] text-slate-500">特殊</span><div class="space-y-1 mt-1"><label class="flex items-center gap-2 text-[10px] cursor-pointer"><input type="checkbox" id="check-zoro"> ゾロ目(11/22)</label><label class="flex items-center gap-2 text-[10px] cursor-pointer"><input type="checkbox" id="check-month-zoro"> 月ゾロ(1/1..)</label></div></div>
+                    </div>
+                    <div><span class="text-[10px] text-slate-500">nの付く日</span><div id="end-digit-chips" class="flex flex-wrap gap-1 mt-1"></div></div>
+                    <div class="grid grid-cols-2 gap-2"><select id="nth-select" class="input-dark text-[10px]"><option value="">(第n)</option><option value="1">第1</option><option value="2">第2</option><option value="3">第3</option><option value="4">第4</option><option value="5">第5</option></select><select id="nth-weekday-select" class="input-dark text-[10px]"><option value="">(曜日)</option><option value="1">日</option><option value="2">月</option><option value="3">火</option><option value="4">水</option><option value="5">木</option><option value="6">金</option><option value="7">土</option></select></div>
+                </div>
+            </div>
+            <div class="glass p-4 rounded-xl">
+                <label class="label-sm">③ 機種選択</label>
+                <div class="flex gap-2 mb-2"><input type="text" id="machine-search" class="input-dark" placeholder="検索..."><button onclick="selectAllMachines(true)" class="text-[10px] bg-slate-700 px-2 rounded">全選</button><button onclick="selectAllMachines(false)" class="text-[10px] bg-slate-700 px-2 rounded">解除</button></div>
+                <div id="machine-list" class="max-h-[200px] overflow-y-auto space-y-1 text-xs scroll-custom"></div>
+            </div>
+            <div class="glass p-4 rounded-xl">
+                <label class="label-sm">④ 末尾選択</label>
+                <div id="unit-digit-chips" class="flex flex-wrap gap-1 mb-2"></div>
+                <label class="flex items-center gap-2 text-[10px] cursor-pointer mt-2"><input type="checkbox" id="check-unit-zoro"> ゾロ目台 (11, 22, 33...)</label>
+            </div>
+            <div class="glass p-4 rounded-xl">
+                <label class="label-sm">⑤ 条件付き書式</label>
+                <div id="format-rules" class="space-y-2"></div>
+                <button onclick="addFormatRule()" class="w-full mt-2 text-[10px] border border-dashed border-slate-600 py-1 rounded hover:bg-slate-800">+ 追加</button>
+            </div>
+            <div class="glass p-4 rounded-xl">
+                <label class="label-sm">⑥ 軸設定</label>
+                <div class="space-y-2">
+                    <select id="axis-title" class="input-dark text-[10px]"><option value="hall_name">店舗名</option><option value="machine_name">機種名</option></select>
+                    <select id="axis-x" class="input-dark text-[10px]"><option value="target_date" selected>日付</option><option value="unit_machine">台番号+機種名</option></select>
+                    <select id="axis-y" class="input-dark text-[10px]"><option value="unit_machine" selected>台番号+機種名</option><option value="target_date">日付</option></select>
+                </div>
+            </div>
+            <div class="glass p-4 rounded-xl">
+                <label class="label-sm">⑦ イベントモード</label>
+                <div id="event-mode-panel" class="space-y-4 text-[10px]">
+                    <div class="space-y-1"><label class="flex items-center gap-1"><input type="checkbox" id="ev-narabi"> 並び</label><div class="grid grid-cols-3 gap-1 pl-4"><input type="number" id="ev-narabi-n" value="3" class="input-dark py-1" placeholder="台"><input type="number" id="ev-narabi-m" value="1000" class="input-dark py-1" placeholder="枚"><input type="color" id="ev-narabi-c" value="#3b82f6" class="h-6 w-full p-0 bg-transparent border-none"></div></div>
+                    <div class="space-y-1"><label class="flex items-center gap-1"><input type="checkbox" id="ev-half"> ハーフ</label><div class="grid grid-cols-2 gap-1 pl-4"><input type="number" id="ev-half-m" value="1500" class="input-dark py-1" placeholder="枚"><input type="color" id="ev-half-c" value="#eab308" class="h-6 w-full p-0 bg-transparent border-none"></div></div>
+                    <div class="space-y-1"><label class="flex items-center gap-1"><input type="checkbox" id="ev-zen" checked> 全</label><div class="grid grid-cols-2 gap-1 pl-4"><input type="number" id="ev-zen-m" value="2500" class="input-dark py-1" placeholder="枚"><div class="flex items-center gap-1"><input type="checkbox" id="ev-zen-rainbow" checked> 虹<input type="color" id="ev-zen-c" value="#ef4444" class="h-6 w-full p-0 bg-transparent border-none"></div></div></div>
+                    <div class="pt-2 border-t border-slate-700"><label class="flex items-center gap-1"><input type="checkbox" id="ev-rot-u"> ローテ(台番号毎)</label><div class="grid grid-cols-4 gap-1 pl-4 mt-1"><input type="number" id="ev-rot-u-m" value="2000" class="input-dark py-1" placeholder="枚"><input type="number" id="ev-rot-u-n" value="3000" class="input-dark py-1" placeholder="G"><select id="ev-rot-u-op" class="input-dark py-1 text-[8px]"><option value="AND">AND</option><option value="OR">OR</option></select><input type="color" id="ev-rot-u-c" value="#dc2626" class="h-6 w-full p-0 bg-transparent border-none"></div></div>
+                </div>
+            </div>
+            <div class="glass p-4 rounded-xl">
+                <label class="label-sm">表示設定</label>
+                <div class="space-y-2">
+                    <div class="flex gap-4"><label class="flex items-center gap-2 text-xs cursor-pointer"><input type="radio" name="display-mode" value="raw" checked onchange="toggleEventPanel()"> 個別</label><label class="flex items-center gap-2 text-xs cursor-pointer"><input type="radio" name="display-mode" value="machine_avg" onchange="toggleEventPanel()"> 機種平均</label></div>
+                    <label class="flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" id="show-games" checked> G数を表示する</label>
+                    <label class="flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" id="hide-zero-units"> [0]台機種を非表示</label>
+                    <label class="flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" id="hide-missing-latest"> 移動台の行を非表示</label>
+                </div>
+            </div>
+            <button onclick="runQuery()" class="w-full btn-primary py-3 shadow-lg uppercase tracking-widest">SQL実行</button>
+            <button onclick="resetDatabase()" class="w-full text-[10px] text-red-400 hover:text-red-300 mt-4">RESET DATABASE</button>
+        </div>
+    </div>
+
+    <!-- Main Content (70%) -->
+    <div id="main-content" class="flex-1 h-full overflow-y-auto p-8 scroll-custom">
+        <div class="max-w-4xl mx-auto">
+            <header class="flex justify-between items-center mb-10">
+                <h2 class="text-xl font-bold text-slate-400 uppercase tracking-widest">過去のクエリ</h2>
+            </header>
+
+            <div id="query-cards-container" class="space-y-4">
+                <!-- Cards will be injected here -->
+                <div class="text-center py-20 text-slate-500 italic">
+                    クエリを実行するとここにカードが表示されます
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Template for Result Table Generation -->
+    <div id="hidden-result-container" class="hidden">
+        <table id="result-table">
+            <thead id="table-head"></thead>
+            <tbody id="table-body"></tbody>
+        </table>
+    </div>
+
+    <div id="legend-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50 p-4" onclick="toggleLegend(false)">
+        <div class="glass p-8 rounded-2xl neon-border max-w-lg w-full" onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold text-sky-400 mb-6 border-b border-slate-700 pb-2">SLOT-DB 凡例</h3>
+            <div id="legend-content" class="space-y-6 text-sm"></div>
+            <button onclick="toggleLegend(false)" class="w-full mt-8 btn-primary">閉じる</button>
+        </div>
+    </div>
+
+    <script>
+        let initData = { halls: [], machines: [], dates: [] };
+        let specificDates = [];
+        // --- HISTORY_DATA_START ---
+        let queryHistory = [
+        {
+                "id": 1776865848189,
+                "storeNames": [
+                        "みとや大森町店"
+                ],
+                "machineNames": [],
+                "dateInfo": "月ゾロ",
+                "timestamp": "2026/04/22 22:50:48",
+                "status": "completed",
+                "progress": 100,
+                "url": "https://Alice-river.github.io/slot-db-results/results/view_1776865842013.html"
+        },
+        {
+                "id": 1776865842027,
+                "storeNames": [
+                        "みとや大森町店"
+                ],
+                "machineNames": [],
+                "dateInfo": "月ゾロ",
+                "timestamp": "2026/04/22 22:50:42",
+                "status": "completed",
+                "progress": 100,
+                "filename": "view_1776865842013.html",
+                "url": "./results/view_1776865842013.html"
+        }
+];
+        // --- HISTORY_DATA_END ---
+        let selectedMachineIds = new Set();
+
+        async function init() {
+            const res = await fetch('/init_data');
+            initData = await res.json();
+            renderHalls();
+            renderMachines();
+            const endDigitChips = document.getElementById('end-digit-chips');
+            const unitDigitChips = document.getElementById('unit-digit-chips');
+            for(let i=0; i<10; i++){
+                endDigitChips.appendChild(createChip(i));
+                unitDigitChips.appendChild(createChip(i));
+            }
+            document.querySelectorAll('#weekday-chips .chip').forEach(c => c.onclick = () => { c.classList.toggle('chip-active'); c.classList.toggle('chip-inactive'); });
+            addFormatRule('diff_count', 'bg', 5000, '#ef4444');
+            addFormatRule('diff_count', 'bg', 3000, '#f97316');
+            addFormatRule('diff_count', 'bg', 2000, '#065f46');
+            addFormatRule('total_games', 'text_g', 8000, '#ff1493');
+            
+            renderQueryCards();
+        }
+
+        function createChip(val) {
+            const span = document.createElement('span');
+            span.className = 'chip chip-inactive';
+            span.innerText = val;
+            span.dataset.val = val;
+            span.onclick = () => { span.classList.toggle('chip-active'); span.classList.toggle('chip-inactive'); };
+            return span;
+        }
+
+        function addSpecificDate() {
+            const val = document.getElementById('specific-date-input').value;
+            if(!val || specificDates.includes(val)) return;
+            specificDates.push(val); renderSpecificDates();
+        }
+        function renderSpecificDates() {
+            const container = document.getElementById('specific-dates-container');
+            container.innerHTML = specificDates.map(d => `<div class="date-badge">${d} <button onclick="removeSpecificDate('${d}')">×</button></div>`).join('');
+        }
+        function removeSpecificDate(date) { specificDates = specificDates.filter(d => d !== date); renderSpecificDates(); }
+
+        function renderHalls() {
+            const search = document.getElementById('hall-search').value.toLowerCase();
+            const filtered = initData.halls.filter(h => h.hall_name.toLowerCase().includes(search));
+            const select = document.getElementById('hall-select');
+            const currentVal = select.value;
+            select.innerHTML = filtered.map(h => `<option value="${h.id}" ${h.id == currentVal ? 'selected' : ''}>${h.hall_name}</option>`).join('');
+        }
+        document.getElementById('hall-search').oninput = renderHalls;
+
+        function renderMachines() {
+            const search = document.getElementById('machine-search').value.toLowerCase();
+            const filtered = initData.machines.filter(m => m.machine_name.toLowerCase().includes(search));
+            document.getElementById('machine-list').innerHTML = filtered.map(m => `
+                <label class="flex items-center gap-2 p-1 hover:bg-slate-700/50 rounded cursor-pointer">
+                    <input type="checkbox" class="machine-cb w-auto" value="${m.id}" data-name="${m.machine_name}" 
+                        ${selectedMachineIds.has(String(m.id)) ? 'checked' : ''} 
+                        onchange="toggleMachineSelection(this)"> ${m.machine_name}
+                </label>
+            `).join('');
+        }
+        function toggleMachineSelection(cb) {
+            if (cb.checked) selectedMachineIds.add(cb.value);
+            else selectedMachineIds.delete(cb.value);
+        }
+        document.getElementById('machine-search').oninput = renderMachines;
+        function selectAllMachines(select) {
+            document.querySelectorAll('.machine-cb').forEach(cb => {
+                cb.checked = select;
+                toggleMachineSelection(cb);
+            });
+        }
+
+        function resetConditions() {
+            document.getElementById('hall-search').value = '';
+            document.getElementById('hall-select').value = '';
+            renderHalls();
+            
+            specificDates = [];
+            renderSpecificDates();
+            document.getElementById('date-start').value = '';
+            document.getElementById('date-end').value = '';
+            document.querySelectorAll('#weekday-chips .chip').forEach(c => { c.classList.remove('chip-active'); c.classList.add('chip-inactive'); });
+            document.getElementById('check-zoro').checked = false;
+            document.getElementById('check-month-zoro').checked = false;
+            document.querySelectorAll('#end-digit-chips .chip').forEach(c => { c.classList.remove('chip-active'); c.classList.add('chip-inactive'); });
+            document.getElementById('nth-select').value = '';
+            document.getElementById('nth-weekday-select').value = '';
+            
+            document.getElementById('machine-search').value = '';
+            selectedMachineIds.clear();
+            renderMachines();
+            
+            document.querySelectorAll('#unit-digit-chips .chip').forEach(c => { c.classList.remove('chip-active'); c.classList.add('chip-inactive'); });
+            document.getElementById('check-unit-zoro').checked = false;
+            
+            document.getElementById('format-rules').innerHTML = '';
+            addFormatRule('diff_count', 'bg', 5000, '#ef4444');
+            addFormatRule('diff_count', 'bg', 3000, '#f97316');
+            addFormatRule('diff_count', 'bg', 2000, '#065f46');
+            addFormatRule('total_games', 'text_g', 8000, '#ff1493');
+            
+            document.getElementById('axis-title').value = 'hall_name';
+            document.getElementById('axis-x').value = 'target_date';
+            document.getElementById('axis-y').value = 'unit_machine';
+            
+            document.getElementById('ev-narabi').checked = false;
+            document.getElementById('ev-half').checked = false;
+            document.getElementById('ev-zen').checked = true;
+            document.getElementById('ev-rot-u').checked = false;
+            
+            document.querySelector('input[name="display-mode"][value="raw"]').checked = true;
+            document.getElementById('show-games').checked = true;
+            document.getElementById('hide-zero-units').checked = false;
+            document.getElementById('hide-missing-latest').checked = false;
+            toggleEventPanel();
+        }
+
+        function addFormatRule(type='diff_count', target='bg', val='', color='#38bdf8') {
+            const div = document.createElement('div'); div.className = 'flex flex-col gap-1 p-2 bg-white/5 rounded format-rule-row';
+            div.innerHTML = `<div class="flex gap-1 items-center"><select class="rule-type input-dark text-[9px] py-1"><option value="diff_count" ${type==='diff_count'?'selected':''}>枚数</option><option value="total_games" ${type==='total_games'?'selected':''}>G数</option></select><select class="rule-target input-dark text-[9px] py-1"><option value="bg" ${target==='bg'?'selected':''}>背景</option><option value="text_g" ${target==='text_g'?'selected':''}>文字(G)</option><option value="text_d" ${target==='text_d'?'selected':''}>文字(枚)</option></select></div><div class="flex gap-1 items-center"><input type="number" class="rule-val input-dark text-[9px] py-1" value="${val}"><input type="color" class="rule-color h-5 w-8 bg-transparent border-none p-0" value="${color}"><button onclick="this.parentElement.parentElement.remove()" class="text-red-400 text-xs">×</button></div>`;
+            document.getElementById('format-rules').appendChild(div);
+        }
+
+        function toggleEventPanel() {
+            const isRaw = document.querySelector('input[name="display-mode"]:checked').value === 'raw';
+            document.getElementById('event-mode-panel').style.opacity = isRaw ? '1' : '0.3';
+            document.getElementById('event-mode-panel').style.pointerEvents = isRaw ? 'auto' : 'none';
+        }
+
+        function renderQueryCards() {
+            const container = document.getElementById('query-cards-container');
+            if (queryHistory.length === 0) {
+                container.innerHTML = `<div class="text-center py-20 text-slate-500 italic">クエリを実行するとここにカードが表示されます</div>`;
+                return;
+            }
+            container.innerHTML = queryHistory.slice().reverse().map(q => `
+                <div class="query-card glass">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="text-sky-400 font-bold text-lg">${q.storeNames.join(', ') || '全店舗'}</div>
+                            <div class="text-xs text-slate-400 mt-1">日付条件: <span class="text-slate-200">${q.dateInfo}</span></div>
+                            <div class="text-xs text-slate-400">機種: ${q.machineNames.length > 3 ? q.machineNames.slice(0,3).join(', ') + '...' : q.machineNames.join(', ') || '全機種'}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[10px] text-slate-500">${q.timestamp}</div>
+                            <div class="mt-2">
+                                ${q.status === 'running' ? 
+                                    '<span class="text-amber-400 text-xs font-bold animate-pulse">実行中...</span>' : 
+                                    `<button onclick="window.open('${q.url}', '_blank')" class="bg-sky-600 hover:bg-sky-500 text-white text-[10px] px-3 py-1 rounded-full font-bold transition-all">結果を表示</button>`
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    ${q.status === 'running' ? `
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${q.progress}%"></div>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        async function runQuery() {
+            const halls = Array.from(document.getElementById('hall-select').selectedOptions).map(o => parseInt(o.value));
+            const storeNames = Array.from(document.getElementById('hall-select').selectedOptions).map(o => o.text);
+            const machineNames = Array.from(selectedMachineIds).map(id => initData.machines.find(m => m.id == id)?.machine_name).filter(n => n);
+            
+            // Build comprehensive dateInfo
+            let dateConds = [];
+            if (specificDates.length) dateConds.push(specificDates.join(', '));
+            if (document.getElementById('date-start').value) {
+                dateConds.push(`${document.getElementById('date-start').value} 〜 ${document.getElementById('date-end').value || '最新'}`);
+            }
+            const activeWeekdays = Array.from(document.querySelectorAll('#weekday-chips .chip-active')).map(c => c.innerText);
+            if (activeWeekdays.length) dateConds.push(`曜:${activeWeekdays.join('')}`);
+            const endDigits = Array.from(document.querySelectorAll('#end-digit-chips .chip-active')).map(c => c.dataset.val);
+            if (endDigits.length) dateConds.push(`${endDigits.join(',')}の付く日`);
+            if (document.getElementById('check-zoro').checked) dateConds.push('ゾロ目');
+            if (document.getElementById('check-month-zoro').checked) dateConds.push('月ゾロ');
+            const nth = document.getElementById('nth-select').value;
+            const nthW = document.getElementById('nth-weekday-select').selectedOptions[0]?.text;
+            if (nth && nthW && nthW !== '(曜日)') dateConds.push(`第${nth}${nthW}`);
+
+            if (dateConds.length === 0) {
+                if (!confirm("日付フィルターが設定されていません。全期間のデータを取得するため、非常に時間がかかる可能性があります。実行しますか？")) return;
+            }
+
+            const dateInfo = dateConds.join(' / ') || "全期間";
+
+            const payload = {
+                halls: halls,
+                machines: Array.from(selectedMachineIds).map(id => parseInt(id)),
+                dates: {
+                    range_start: document.getElementById('date-start').value || null, range_end: document.getElementById('date-end').value || null, specific_dates: specificDates,
+                    weekdays: Array.from(document.querySelectorAll('#weekday-chips .chip-active')).map(c => parseInt(c.dataset.val)),
+                    days_ending_with: Array.from(document.querySelectorAll('#end-digit-chips .chip-active')).map(c => parseInt(c.dataset.val)),
+                    zoro_days: document.getElementById('check-zoro').checked, month_zoro: document.getElementById('check-month-zoro').checked,
+                    nth_weekdays: (document.getElementById('nth-select').value && document.getElementById('nth-weekday-select').value) ? [{nth: parseInt(document.getElementById('nth-select').value), weekday: parseInt(document.getElementById('nth-weekday-select').value)}] : []
+                },
+                display_mode: document.querySelector('input[name="display-mode"]:checked').value,
+                unit_last_digits: Array.from(document.querySelectorAll('#unit-digit-chips .chip-active')).map(c => parseInt(c.dataset.val)),
+                unit_zoro: document.getElementById('check-unit-zoro').checked,
+                hide_zero_units: document.getElementById('hide-zero-units').checked,
+                hide_missing_latest: document.getElementById('hide-missing-latest').checked
+            };
+
+            // 先に件数を確認
+            try {
+                const countRes = await fetch('/query_count', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+                const countData = await countRes.json();
+                if (countData.status === 'success' && countData.count > 5000) {
+                    if (!confirm(`対象データが ${countData.count.toLocaleString()} 件あります。取得に時間がかかり、ブラウザが重くなる可能性があります。続行しますか？`)) return;
+                }
+            } catch (e) { console.error("Count check failed", e); }
+
+            const queryId = Date.now();
+            const queryObj = {
+                id: queryId,
+                storeNames,
+                machineNames,
+                dateInfo,
+                timestamp: new Date().toLocaleString(),
+                status: 'running',
+                progress: 10,
+                url: null
+            };
+            queryHistory.push(queryObj);
+            renderQueryCards();
+
+            const progInterval = setInterval(() => {
+                if (queryObj.progress < 90) {
+                    queryObj.progress += Math.random() * 15;
+                    renderQueryCards();
+                }
+            }, 500);
+
+            try {
+                const res = await fetch('/query', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    if (data.results.length > 5000) {
+                        if (!confirm(`取得したデータが ${data.results.length.toLocaleString()} 件あります。表示（レンダリング）に時間がかかります。続行しますか？`)) {
+                            clearInterval(progInterval);
+                            queryHistory = queryHistory.filter(q => q.id !== queryId);
+                            renderQueryCards();
+                            return;
+                        }
+                    }
+
+                    queryObj.progress = 95; renderQueryCards();
+                    const publishData = generateStaticHtml(data.results, dateInfo);
+                    const pubRes = await fetch('/publish', { 
+                        method: 'POST', 
+                        headers: {'Content-Type': 'application/json'}, 
+                        body: JSON.stringify({ 
+                            html: publishData.html,
+                            hall_names: publishData.hallNames,
+                            date_info: publishData.dateInfo,
+                            filename: publishData.filename
+                        }) 
+                    });
+                    const pubData = await pubRes.json();
+                    
+                    clearInterval(progInterval);
+                    queryObj.status = 'completed';
+                    queryObj.progress = 100;
+                    queryObj.url = window.location.origin + pubData.url;
+                    renderQueryCards();
+                    window.open(queryObj.url, '_blank');
+                } else {
+                    alert(data.message);
+                    clearInterval(progInterval);
+                    queryHistory = queryHistory.filter(q => q.id !== queryId);
+                    renderQueryCards();
+                }
+            } catch (e) {
+                console.error(e);
+                clearInterval(progInterval);
+                alert("エラーが発生しました");
+                queryHistory = queryHistory.filter(q => q.id !== queryId);
+                renderQueryCards();
+            }
+        }
+
+        function renderMobileCards(results) {
+            const xKey = document.getElementById('axis-x').value;
+            const yKey = document.getElementById('axis-y').value;
+            const groups = {};
+            results.forEach(row => {
+                const yVal = getAxisVal(row, yKey);
+                if (!groups[yVal]) groups[yVal] = [];
+                groups[yVal].push(row);
+            });
+
+            let html = '<div class="space-y-4 px-2 pb-20">';
+            Object.keys(groups).sort().forEach(yVal => {
+                html += `<div class="glass p-4 rounded-2xl neon-border shadow-xl">
+                    <div class="text-sky-400 font-black text-lg border-b border-slate-700/50 pb-2 mb-3 flex justify-between items-center">
+                        <span>${yVal}</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">`;
+                groups[yVal].sort((a,b) => b[xKey].localeCompare(a[xKey])).forEach(row => {
+                    const dVal = row.diff_count ?? Math.round(row.avg_diff);
+                    const gVal = row.total_games ?? Math.round(row.avg_games);
+                    const colorClass = dVal >= 0 ? 'text-red-400' : 'text-sky-400';
+                    html += `<div class="bg-slate-800/40 p-3 rounded-xl border border-white/5">
+                        <div class="text-[11px] font-bold text-slate-500 mb-1">${formatDisplayVal(row[xKey], xKey)}</div>
+                        <div class="text-xl font-black ${colorClass} leading-none mb-1">${(dVal>=0?'+':'')+dVal.toLocaleString()}</div>
+                        <div class="text-[10px] text-slate-400 font-mono">${gVal.toLocaleString()} G</div>
+                    </div>`;
+                });
+                html += `</div></div>`;
+            });
+            html += '</div>';
+            return html;
+        }
+
+        function generateStaticHtml(results, dateInfo) {
+            if(!results.length) return { html: "<html><body>No data</body></html>" };
+            renderResultsTable(results);
+            const tableHtml = document.getElementById('result-table').outerHTML;
+            const mobileHtml = renderMobileCards(results);
+            const legendHtml = document.getElementById('legend-content').innerHTML;
+            const title = results[0][document.getElementById('axis-title').value] || "RESULTS";
+            const styles = Array.from(document.styleSheets).map(sheet => { try { return Array.from(sheet.cssRules).map(rule => rule.cssText).join(''); } catch(e) { return ''; } }).join('');
+            const scriptTag = '<' + 'script src="https://cdn.tailwindcss.com"><' + '/script>';
+            
+            const filename = `view_${Date.now()}.html`;
+            
+            const fullHtml = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes"><title>SLOT-DB - ${title}</title>${scriptTag}<style>${styles}</style><style>body { padding: 0; margin: 0; background-color: #0f172a; color: #f8fafc; -webkit-text-size-adjust: 100%; } .publish-info { padding: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(30, 41, 59, 0.5); margin-bottom: 1rem; } .github-btn { background: #24292e; color: white; padding: 0.6rem 1.2rem; border-radius: 0.75rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; border: 1px solid rgba(255,255,255,0.1); font-size: 14px; } .ui-toggle-btn { background: rgba(56, 189, 248, 0.1); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 0.5rem 1rem; border-radius: 9999px; font-size: 12px; font-weight: bold; transition: all 0.2s; } .ui-toggle-btn.active { background: #38bdf8; color: #0f172a; } .mobile-only { display: none; } .pc-only { display: block; } @media (max-width: 768px) { .publish-info { padding: 1rem; } .text-3xl { font-size: 1.5rem; } }</style></head><body>
+<div class="publish-info">
+    <div class="flex justify-between items-center mb-4">
+        <h1 class="text-2xl font-black text-sky-400">SLOT-DB</h1>
+        <div class="flex gap-2">
+            <button onclick="switchUI('pc')" id="btn-pc" class="ui-toggle-btn active">PC用</button>
+            <button onclick="switchUI('mobile')" id="btn-mobile" class="ui-toggle-btn">スマホ用</button>
+        </div>
+    </div>
+    <div class="flex justify-between items-end">
+        <div>
+            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${title}</p>
+            <p class="text-[9px] text-slate-600 mt-1">${new Date().toLocaleString()}</p>
+        </div>
+        <button onclick="publishToGithub()" id="gh-publish-btn" class="github-btn"><svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>公開</button>
+    </div>
+</div>
+
+<div id="view-pc" class="pc-only p-4">
+    <div class="glass rounded-2xl overflow-hidden neon-border mb-8 result-view-table"><div class="overflow-auto scroll-custom">${tableHtml}</div></div>
+    <div class="glass p-8 rounded-2xl neon-border max-w-lg"><h3 class="text-xl font-bold text-sky-400 mb-6 border-b border-slate-700 pb-2">凡例</h3><div class="space-y-6 text-sm">${legendHtml}</div></div>
+</div>
+
+<div id="view-mobile" class="mobile-only">
+    ${mobileHtml}
+    <div class="p-4"><div class="glass p-6 rounded-2xl neon-border"><h3 class="font-bold text-sky-400 mb-4 border-b border-slate-700 pb-2 text-sm">凡例</h3><div class="space-y-4 text-[11px]">${legendHtml}</div></div></div>
+</div>
+
+<script>
+function switchUI(mode) {
+    document.getElementById('view-pc').style.display = mode === 'pc' ? 'block' : 'none';
+    document.getElementById('view-mobile').style.display = mode === 'mobile' ? 'block' : 'none';
+    document.getElementById('btn-pc').classList.toggle('active', mode === 'pc');
+    document.getElementById('btn-mobile').classList.toggle('active', mode === 'mobile');
+    if(mode === 'pc') window.scrollTo(0,0);
+}
+
+const isGitHub = window.location.hostname.includes('github.io');
+if (isGitHub) {
+    document.getElementById('gh-publish-btn').remove();
+    switchUI('mobile');
+}
+
+async function publishToGithub() { 
+    const btn = document.getElementById('gh-publish-btn'); 
+    const originalContent = btn.innerHTML;
+    btn.disabled = true; 
+    btn.innerText = 'Uploading...'; 
+    try { 
+        const html = document.documentElement.outerHTML; 
+        const hallNames = "${title}";
+        const dateInfo = "${dateInfo}";
+        const res = await fetch(window.location.origin + '/publish_to_github', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ 
+                html, 
+                filename: "${filename}",
+                hall_names: hallNames,
+                date_info: dateInfo
+            }) 
+        }); 
+        const data = await res.json(); 
+        if (data.status === 'success') { 
+            btn.innerText = 'OK!'; 
+            setTimeout(() => { if (confirm('GitHub Pagesで公開されました。URLを開きますか？\\n' + data.url)) { window.open(data.url, '_blank'); } }, 100); 
+        } else { alert('エラー: ' + data.message); btn.innerHTML = originalContent; btn.disabled = false; } 
+    } catch (e) { alert('通信エラーが発生しました'); btn.innerHTML = originalContent; btn.disabled = false; } 
+} 
+</` + `script></body></html>`;
+
+            return {
+                html: fullHtml,
+                hallNames: title,
+                dateInfo: dateInfo,
+                filename: filename
+            };
+        }
+
+        function getAxisVal(row, key) {
+            if (key === 'unit_machine') {
+                const countStr = row.machine_count !== undefined ? `[${row.machine_count}] ` : '';
+                return `${countStr}${row.unit_number || ''} ${row.machine_name}`;
+            }
+            if (key === 'machine_name') {
+                const countStr = row.machine_count !== undefined ? ` [${row.machine_count}]` : '';
+                return `${row.machine_name}${countStr}`;
+            }
+            return row[key];
+        }
+        function formatDisplayVal(val, key) {
+            if (key === 'target_date' && typeof val === 'string' && val.includes('-')) { const d = new Date(val); return `${d.getMonth()+1}/${d.getDate()}`; }
+            return val;
+        }
+
+        function renderResultsTable(results) {
+            const body = document.getElementById('table-body'), head = document.getElementById('table-head');
+            body.innerHTML = ''; head.innerHTML = '';
+            if(!results.length) return;
+            const xKey = document.getElementById('axis-x').value, yKey = document.getElementById('axis-y').value, showGames = document.getElementById('show-games').checked;
+            const pivot = {}, xMap = new Set(), yMap = new Set(), machineDataMap = {}, unitPeriodStats = {};
+            results.forEach(row => {
+                const xVal = getAxisVal(row, xKey), yVal = getAxisVal(row, yKey);
+                xMap.add(xVal); yMap.add(yVal);
+                if (!pivot[yVal]) pivot[yVal] = {}; pivot[yVal][xVal] = row;
+                const mk = `${row.target_date}_${row.hall_name}_${row.machine_name}`;
+                if (!machineDataMap[mk]) machineDataMap[mk] = []; machineDataMap[mk].push(row.diff_count ?? 0);
+                const uk = row.unit_number; const mn = row.machine_name;
+                if(!unitPeriodStats[uk]) unitPeriodStats[uk] = { machine_name: mn, max_diff: -99999, max_games: 0 };
+                unitPeriodStats[uk].max_diff = Math.max(unitPeriodStats[uk].max_diff, row.diff_count || 0);
+                unitPeriodStats[uk].max_games = Math.max(unitPeriodStats[uk].max_games, row.total_games || 0);
+            });
+            const sortedX = Array.from(xMap).sort((a,b) => b.localeCompare(a));
+            const sortedY = Array.from(yMap).sort((a,b) => a.localeCompare(b));
+            const rules = Array.from(document.querySelectorAll('.format-rule-row')).map(r => ({ type: r.querySelector('.rule-type').value, target: r.querySelector('.rule-target').value, val: parseInt(r.querySelector('.rule-val').value) || 0, color: r.querySelector('.rule-color').value })).sort((a, b) => a.val - b.val);
+            const ev = {
+                evNarabi: document.getElementById('ev-narabi').checked, narabiN: parseInt(document.getElementById('ev-narabi-n').value), narabiM: parseInt(document.getElementById('ev-narabi-m').value), narabiC: document.getElementById('ev-narabi-c').value,
+                evHalf: document.getElementById('ev-half').checked, halfM: parseInt(document.getElementById('ev-half-m').value), halfC: document.getElementById('ev-half-c').value,
+                evZen: document.getElementById('ev-zen').checked, zenM: parseInt(document.getElementById('ev-zen-m').value), zenC: document.getElementById('ev-zen-c').value, zenRainbow: document.getElementById('ev-zen-rainbow').checked,
+                evRotU: document.getElementById('ev-rot-u').checked, rotUm: parseInt(document.getElementById('ev-rot-u-m').value), rotUn: parseInt(document.getElementById('ev-rot-u-n').value), rotUop: document.getElementById('ev-rot-u-op').value, rotUc: document.getElementById('ev-rot-u-c').value
+            };
+            head.innerHTML = `<tr><th class="sticky left-0 z-20 bg-[#1e293b]"></th>${sortedX.map(x => `<th>${formatDisplayVal(x, xKey)}</th>`).join('')}</tr>`;
+            body.innerHTML = sortedY.map(y => {
+                const rowCells = sortedX.map(x => pivot[y][x]);
+                const narabiFlags = new Array(rowCells.length).fill(null);
+                if (ev.evNarabi) {
+                    for (let i = 0; i <= rowCells.length - ev.narabiN; i++) {
+                        const win = rowCells.slice(i, i + ev.narabiN).filter(c => c);
+                        if (win.length === ev.narabiN) {
+                            const avg = win.reduce((a, b) => a + (b.diff_count || 0), 0) / ev.narabiN;
+                            if (avg >= ev.narabiM) { for(let j=0; j<ev.narabiN; j++) if(!narabiFlags[i+j] || avg > narabiFlags[i+j].avg) narabiFlags[i+j] = {avg}; }
+                        }
+                    }
+                }
+                let headerStyle = `background-color: #1e293b; color: white;`;
+                const cellRef = rowCells.find(c => c);
+                if (cellRef && ev.evRotU && unitPeriodStats[cellRef.unit_number]) {
+                    const uStats = unitPeriodStats[cellRef.unit_number];
+                    const met = ev.rotUop === 'AND' ? (uStats.max_diff >= ev.rotUm && uStats.max_games >= ev.rotUn) : (uStats.max_diff >= ev.rotUm || uStats.max_games >= ev.rotUn);
+                    if (!met) headerStyle = `background-color:${ev.rotUc}; color:white;`;
+                }
+                return `<tr><td class="sticky left-0 z-10 font-bold whitespace-nowrap text-left px-4" style="${headerStyle} border-right:2px solid #334155; min-width: 150px;">${formatDisplayVal(y, yKey)}</td>${rowCells.map((cell, idx) => {
+                    if (!cell) return `<td>-</td>`;
+                    const mk = `${cell.target_date}_${cell.hall_name}_${cell.machine_name}`;
+                    const mDiffs = machineDataMap[mk] ? machineDataMap[mk].sort((a,b) => b-a) : [0], zenAvg = mDiffs.reduce((a,b)=>a+b,0) / mDiffs.length, halfAvg = mDiffs.slice(0, Math.ceil(mDiffs.length/2)).reduce((a,b)=>a+b,0) / Math.ceil(mDiffs.length/2);
+                    let styles = {bg: '', text_g: '', text_d: '', border: ''};
+                    rules.forEach(r => {
+                        const val = r.type === 'diff_count' ? (cell.diff_count ?? cell.avg_diff) : (cell.total_games ?? cell.avg_games);
+                        if (val >= r.val) { if (r.target === 'bg') styles.bg = r.color; else if (r.target === 'text_g') styles.text_g = r.color; else if (r.target === 'text_d') styles.text_d = r.color; }
+                    });
+                    let borderClass = '';
+                    if (ev.evZen && zenAvg >= ev.zenM) { if (ev.zenRainbow) borderClass = 'rainbow-border'; else styles.border = `3px solid ${ev.zenC}`; }
+                    else if (ev.evHalf && halfAvg >= ev.halfM) styles.border = `3px solid ${ev.halfC}`;
+                    else if (narabiFlags[idx]) styles.border = `3px solid ${ev.narabiC}`;
+                    const dVal = cell.diff_count ?? Math.round(cell.avg_diff), gVal = cell.total_games ?? Math.round(cell.avg_games);
+                    return `<td class="${borderClass}" style="background-color:${styles.bg}; border:${styles.border};"><span style="color:${styles.text_d}">${(dVal>=0?'+':'')+dVal.toLocaleString()}枚</span>${showGames ? `<br><span style="color:${styles.text_g}; font-size:9px;">${gVal.toLocaleString()}G</span>` : ''}</td>`;
+                }).join('')}</tr>`;
+            }).join('');
+            updateLegend(rules, ev);
+        }
+
+        function toggleLegend(show) { document.getElementById('legend-modal').classList.toggle('hidden', !show); if(show) document.getElementById('legend-modal').classList.add('flex'); else document.getElementById('legend-modal').classList.remove('flex'); }
+        function updateLegend(rules, ev) {
+            let html = '<div class="space-y-4"><div><p class="font-bold text-slate-400 mb-2">書式設定</p><div class="space-y-1">';
+            rules.forEach(r => { html += `<div class="flex items-center gap-2"><div class="w-4 h-4 rounded" style="background:${r.color}"></div><span>${r.type==='diff_count'?'差枚':'G数'} ${r.val.toLocaleString()}以上 → ${r.target==='bg'?'背景':(r.target==='text_g'?'文字(G)':'文字(枚)')}</span></div>`; });
+            html += '</div></div><div class="pt-4 border-t border-slate-800"><p class="font-bold text-slate-400 mb-2">イベントモード</p><div class="space-y-2">';
+            if(ev.evNarabi) html += `<div class="flex items-center gap-2"><div class="w-4 h-4 border-2" style="border-color:${ev.narabiC}"></div><span>並び: ${ev.narabiN}台平均 ${ev.narabiM.toLocaleString()}枚以上</span></div>`;
+            if(ev.evHalf) html += `<div class="flex items-center gap-2"><div class="w-4 h-4 border-2" style="border-color:${ev.halfC}"></div><span>ハーフ: 上位1/2平均 ${ev.halfM.toLocaleString()}枚以上</span></div>`;
+            if(ev.evZen) html += `<div class="flex items-center gap-2">${ev.zenRainbow?'<div class="w-4 h-4 rainbow-border"></div>':`<div class="w-4 h-4 border-2" style="border-color:${ev.zenC}"></div>`}<span>全台: 機種平均 ${ev.zenM.toLocaleString()}枚以上</span></div>`;
+            if(ev.evRotU) html += `<div class="flex items-center gap-2"><div class="w-4 h-4" style="background:${ev.rotUc}"></div><span>ローテ未達(台): ${ev.rotUm.toLocaleString()}枚 ${ev.rotUop} ${ev.rotUn.toLocaleString()}G</span></div>`;
+            html += '</div></div></div>';
+            document.getElementById('legend-content').innerHTML = html;
+        }
+
+        function resetDatabase() {
+            const pwd = prompt("データベースをリセットするにはパスワードを入力してください:");
+            if (!pwd) return;
+            if (confirm("本当にリセットしますか？この操作は取り消せません。")) {
+                fetch('/reset_db', {
+                    method:'POST', 
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ password: pwd })
+                }).then(res => res.json()).then(data => {
+                    if (data.status === 'success') {
+                        alert(data.message);
+                        location.reload();
+                    } else {
+                        alert(data.message);
+                    }
+                });
+            }
+        }
+        init();
+    </script>
+</body>
+</html>
